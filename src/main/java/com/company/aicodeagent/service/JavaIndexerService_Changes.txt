@@ -1,0 +1,29 @@
+Inject:
+
+private final ClassDependencyRepository dependencyRepository;
+
+Constructor:
+
+ClassDependencyRepository dependencyRepository
+
+this.dependencyRepository = dependencyRepository;
+
+After saving JavaClassEntity:
+
+for (String dependency : metadata.getDependencies()) {
+
+    ClassDependencyEntity dependencyEntity =
+            new ClassDependencyEntity();
+
+    dependencyEntity.setSourceClass(
+            metadata.getClassName());
+
+    dependencyEntity.setTargetClass(
+            dependency);
+
+    dependencyEntity.setRepoName(
+            repoName);
+
+    dependencyRepository.save(
+            dependencyEntity);
+}

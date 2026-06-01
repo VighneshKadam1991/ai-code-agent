@@ -1,0 +1,8 @@
+Inside parse loop:
+
+String source = Files.readString(path);
+
+metadata.setSourceCode(source);
+metadata.setFilePath(path.toString());
+
+CompilationUnit cu = StaticJavaParser.parse(source);

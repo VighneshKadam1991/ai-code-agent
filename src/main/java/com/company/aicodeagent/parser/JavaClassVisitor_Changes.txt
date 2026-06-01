@@ -1,0 +1,7 @@
+Inside visit(FieldDeclaration fd, ClassMetadata metadata)
+
+String type = fd.getElementType().asString();
+
+metadata.getDependencies().add(type);
+
+Keep existing field extraction code.

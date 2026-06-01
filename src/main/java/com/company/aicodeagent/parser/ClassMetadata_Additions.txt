@@ -1,0 +1,11 @@
+Add to ClassMetadata.java
+
+private List<String> dependencies = new ArrayList<>();
+
+public List<String> getDependencies() {
+    return dependencies;
+}
+
+public void setDependencies(List<String> dependencies) {
+    this.dependencies = dependencies;
+}
