@@ -1,1 +1,453 @@
-# ai-code-agent
+# AI Code Impact Analysis Platform
+
+## Overview
+
+AI Code Impact Analysis Platform is a Spring Boot application that indexes Java microservice repositories, builds a dependency graph, and uses Claude AI to analyze change requests and identify impacted code.
+
+The platform helps developers answer questions such as:
+
+* Which files need to change if a domain object is renamed?
+* Which services are affected by a bug fix?
+* What repositories, controllers, entities, and tests must be updated?
+* What database changes are required?
+* What implementation risks exist?
+
+Example:
+
+**Input**
+
+```text
+Owner renamed to Customer
+```
+
+**Output**
+
+```text
+Impacted Files:
+- Owner.java
+- OwnerRepository.java
+- OwnerController.java
+- PetController.java
+
+Database Changes:
+- Rename owners table
+- Rename owner_id column
+
+Risks:
+- REST API breaking changes
+
+Suggested Code Changes:
+- Rename class Owner -> Customer
+- Update repositories
+- Update imports
+- Update controllers
+```
+
+---
+
+# Architecture
+
+```text
+GitHub Repositories
+         |
+         v
+ Repository Indexer
+         |
+         v
+   Java Parser
+         |
+         v
+ PostgreSQL Storage
+         |
+         +-------------------+
+         |                   |
+         v                   v
+ java_classes      class_dependencies
+         |                   |
+         +---------+---------+
+                   |
+                   v
+          Impact Analysis
+                   |
+                   v
+           Prompt Builder
+                   |
+                   v
+            Claude Sonnet
+                   |
+                   v
+       Change Recommendations
+```
+
+---
+
+# Features
+
+## Repository Indexing
+
+Clone and index GitHub repositories.
+
+Stores:
+
+* Class Name
+* Package Name
+* Methods
+* Fields
+* Imports
+* Annotations
+* Source Code
+* File Paths
+
+---
+
+## Dependency Graph
+
+Automatically builds relationships between classes.
+
+Example:
+
+```text
+OwnerController -> OwnerRepository
+
+PetController -> OwnerRepository
+
+Pet -> Owner
+```
+
+Used for impact analysis.
+
+---
+
+## Impact Analysis
+
+Given a change request:
+
+```text
+Owner renamed to Customer
+```
+
+The platform determines:
+
+* Directly impacted classes
+* Indirectly impacted classes
+* Repository layer changes
+* Controller changes
+* Database changes
+
+---
+
+## Claude AI Integration
+
+Uses Claude Sonnet to:
+
+* Analyze impacted source code
+* Recommend code changes
+* Recommend database changes
+* Identify implementation risks
+* Produce migration plans
+
+---
+
+# Technology Stack
+
+## Backend
+
+* Java 21+
+* Spring Boot
+* Spring Data JPA
+* Spring WebClient
+
+## Parsing
+
+* JavaParser
+
+## Database
+
+* PostgreSQL
+* Docker
+
+## AI
+
+* Claude Sonnet
+* Anthropic API
+
+## Build
+
+* Maven
+
+---
+
+# Project Structure
+
+```text
+src/main/java/com/company/aicodeagent
+
+config/
+    ClaudeConfig.java
+
+controller/
+    RepositoryController.java
+    AnalysisController.java
+    DependencyAnalysisController.java
+    AiAnalysisController.java
+
+dto/
+    AiAnalysisRequest.java
+    AiAnalysisResponse.java
+    ClaudeResponse.java
+    ClaudeContent.java
+
+entity/
+    JavaClassEntity.java
+    ClassDependencyEntity.java
+
+parser/
+    JavaClassVisitor.java
+    ClassMetadata.java
+
+repository/
+    JavaClassRepository.java
+    ClassDependencyRepository.java
+
+service/
+    JavaParserService.java
+    JavaIndexerService.java
+    DependencyTraversalService.java
+    GraphTraversalService.java
+    PromptBuilderService.java
+    ClaudeService.java
+    AiAnalysisService.java
+```
+
+---
+
+# Prerequisites
+
+Install:
+
+* Java 21+
+* Maven 3.9+
+* Docker Desktop
+* Git
+
+Create an Anthropic account and obtain an API key.
+
+---
+
+# Running PostgreSQL
+
+```bash
+docker run --name ai-code-agent-db \
+-e POSTGRES_PASSWORD=postgres \
+-e POSTGRES_DB=codeagent \
+-p 5432:5432 \
+-d postgres:16
+```
+
+Verify:
+
+```bash
+docker ps
+```
+
+---
+
+# Application Configuration
+
+Create:
+
+```yaml
+application.yml
+```
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/codeagent
+    username: postgres
+    password: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+anthropic:
+  api-key: YOUR_ANTHROPIC_API_KEY
+
+claude:
+  model: claude-sonnet-4-20250514
+```
+
+---
+
+# Build
+
+```bash
+mvn clean install
+```
+
+---
+
+# Run
+
+```bash
+mvn spring-boot:run
+```
+
+Application starts on:
+
+```text
+http://localhost:8080
+```
+
+---
+
+# API Endpoints
+
+## Index Repository
+
+### Request
+
+```http
+POST /repositories/index
+```
+
+```json
+{
+  "repoUrl":"https://github.com/spring-projects/spring-petclinic.git"
+}
+```
+
+### Response
+
+```text
+Indexed classes: 47
+```
+
+---
+
+## Dependency Analysis
+
+### Request
+
+```http
+POST /analysis/dependencies
+```
+
+```json
+{
+  "issue":"OwnerRepository"
+}
+```
+
+### Response
+
+```text
+Root Impact: OwnerRepository
+
+Affected Class: OwnerController
+
+Affected Class: PetController
+```
+
+---
+
+## AI Analysis
+
+### Request
+
+```http
+POST /analysis/ai
+```
+
+```json
+{
+  "issue":"Owner renamed to Customer"
+}
+```
+
+### Response
+
+```json
+{
+  "response":"Impact analysis generated by Claude"
+}
+```
+
+---
+
+# Example Workflow
+
+## Step 1
+
+Index repository:
+
+```bash
+curl -X POST http://localhost:8080/repositories/index \
+-H "Content-Type: application/json" \
+-d '{"repoUrl":"https://github.com/spring-projects/spring-petclinic.git"}'
+```
+
+---
+
+## Step 2
+
+Run AI analysis:
+
+```bash
+curl -X POST http://localhost:8080/analysis/ai \
+-H "Content-Type: application/json" \
+-d '{"issue":"Owner renamed to Customer"}'
+```
+
+---
+
+## Step 3
+
+Review:
+
+* Impacted files
+* Dependency chain
+* Database changes
+* Risks
+* Suggested implementation steps
+
+---
+
+# Future Enhancements
+
+## Neo4j Graph Database
+
+Replace relational dependency storage with Neo4j for advanced graph traversal.
+
+---
+
+## Multi-Repository Analysis
+
+Support analysis across dozens of microservices.
+
+---
+
+## GitHub Pull Request Generation
+
+Automatically generate pull requests based on AI recommendations.
+
+---
+
+## React UI
+
+Provide a web interface for architects, developers, and platform teams.
+
+---
+
+# Demo Pitch
+
+AI Code Impact Analysis Platform enables engineering teams to describe a change request in plain English and instantly understand:
+
+* Impacted services
+* Impacted classes
+* Database modifications
+* Risks
+* Recommended implementation plan
+
+The platform combines static code analysis, dependency graphs, and Claude AI to accelerate software delivery and reduce change risk.

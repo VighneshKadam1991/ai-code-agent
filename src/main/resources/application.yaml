@@ -5,12 +5,9 @@ spring:
     password: postgres
 
   jpa:
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: update
-
-anthropic:
-  api-key: API key
 
 claude:
   model: claude-sonnet-4-20250514

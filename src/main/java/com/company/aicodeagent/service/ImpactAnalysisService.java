@@ -1,5 +1,7 @@
 package com.company.aicodeagent.service;
 
+import com.company.aicodeagent.controller.SearchController;
+import com.company.aicodeagent.dto.ImpactFileResponse;
 import com.company.aicodeagent.entity.JavaClassEntity;
 import org.springframework.stereotype.Service;
 
@@ -9,9 +11,20 @@ import java.util.List;
 public class ImpactAnalysisService {
 
     private final SearchService searchService;
-
-    public ImpactAnalysisService(SearchService searchService) {
+    private final SearchController
+            searchController;
+    public ImpactAnalysisService(SearchService searchService,
+                                 SearchController searchController)
+    {
         this.searchService = searchService;
+        this.searchController = searchController;
+    }
+
+    public List<ImpactFileResponse>
+    filesImpact(String entity) {
+
+        return searchController
+                .filesImpact(entity);
     }
 
     public String analyze(String issue) {

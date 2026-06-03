@@ -20,6 +20,9 @@ public class GraphTraversalService {
     public Set<String> findImpactedClasses(
             String rootClass) {
 
+        System.out.println(
+                "STARTING GRAPH TRAVERSAL");
+
         Set<String> impacted =
                 new HashSet<>();
 
@@ -28,42 +31,81 @@ public class GraphTraversalService {
 
         queue.add(rootClass);
 
-        System.out.println(
-                "STARTING GRAPH TRAVERSAL");
-
         while (!queue.isEmpty()) {
 
             String current =
                     queue.poll();
 
-            System.out.println(
-                    "PROCESSING = " + current);
+            if (current == null) {
+                continue;
+            }
 
-            List<ClassDependencyEntity> deps =
+            current = current.trim();
+
+            System.out.println(
+                    "PROCESSING = "
+                            + current);
+
+            // Incoming dependencies
+            List<ClassDependencyEntity> incoming =
                     repository
                             .findByTargetClassIgnoreCase(
                                     current);
+            System.out.println(
+                    "LOOKING FOR TARGET = ["
+                            + current
+                            + "]");
 
             System.out.println(
-                    "FOUND DEPENDENCIES = "
-                            + deps.size());
+                    "INCOMING = "
+                            + incoming.size());
 
-            for (ClassDependencyEntity dep : deps) {
+            for (ClassDependencyEntity dep
+                    : incoming) {
 
                 String source =
                         dep.getSourceClass();
 
-                System.out.println(
-                        "DISCOVERED = "
-                                + source);
+                if (isTestClass(source)) {
+                    continue;
+                }
 
                 if (impacted.add(source)) {
 
+                    System.out.println(
+                            "ADDING INCOMING = "
+                                    + source);
+
                     queue.add(source);
+                }
+            }
+            System.out.println(
+                    "LOOKING FOR SOURCE = ["
+                            + current
+                            + "]");
+            // Outgoing dependencies
+            List<ClassDependencyEntity> outgoing =
+                    repository
+                            .findBySourceClassIgnoreCase(
+                                    current);
+
+            System.out.println(
+                    "OUTGOING = "
+                            + outgoing.size());
+
+            for (ClassDependencyEntity dep
+                    : outgoing) {
+
+                String target =
+                        dep.getTargetClass();
+
+                if (impacted.add(target)) {
 
                     System.out.println(
-                            "ADDED TO QUEUE = "
-                                    + source);
+                            "ADDING OUTGOING = "
+                                    + target);
+
+                    queue.add(target);
                 }
             }
         }
@@ -76,4 +118,14 @@ public class GraphTraversalService {
 
         return impacted;
     }
+
+    private boolean isTestClass(
+            String className) {
+
+        return className.endsWith("Tests")
+                || className.endsWith("Test")
+                || className.contains(
+                "IntegrationTest");
+    }
+
 }

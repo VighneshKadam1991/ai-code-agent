@@ -5,6 +5,10 @@ import com.company.aicodeagent.parser.JavaClassVisitor;
 import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.AnnotationDeclaration;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
+import com.github.javaparser.ast.body.RecordDeclaration;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -32,6 +36,14 @@ public class JavaParserService {
         Files.walk(repoDir.toPath())
                 .filter(path ->
                         path.toString().endsWith(".java"))
+                .filter(path ->
+                        !path.getFileName()
+                                .toString()
+                                .equals("package-info.java"))
+                .filter(path ->
+                        !path.getFileName()
+                                .toString()
+                                .equals("module-info.java"))
                 .forEach(path -> {
 
                     try {
@@ -45,7 +57,8 @@ public class JavaParserService {
                         ClassMetadata metadata =
                                 new ClassMetadata();
 
-                        metadata.setSourceCode(source);
+                        metadata.setSourceCode(
+                                source);
 
                         metadata.setFilePath(
                                 path.toString());
@@ -55,11 +68,75 @@ public class JavaParserService {
                                         metadata.setPackageName(
                                                 pkg.getNameAsString()));
 
-                        cu.findFirst(
-                                        com.github.javaparser.ast.body.ClassOrInterfaceDeclaration.class)
-                                .ifPresent(clazz ->
-                                        metadata.setClassName(
-                                                clazz.getNameAsString()));
+                        String className = null;
+
+                        /*
+                         * Class / Interface
+                         */
+                        var classDecl =
+                                cu.findFirst(
+                                        ClassOrInterfaceDeclaration.class);
+
+                        if (classDecl.isPresent()) {
+
+                            className =
+                                    classDecl.get()
+                                            .getNameAsString();
+                        }
+
+                        /*
+                         * Enum
+                         */
+                        if (className == null) {
+
+                            var enumDecl =
+                                    cu.findFirst(
+                                            EnumDeclaration.class);
+
+                            if (enumDecl.isPresent()) {
+
+                                className =
+                                        enumDecl.get()
+                                                .getNameAsString();
+                            }
+                        }
+
+                        /*
+                         * Record
+                         */
+                        if (className == null) {
+
+                            var recordDecl =
+                                    cu.findFirst(
+                                            RecordDeclaration.class);
+
+                            if (recordDecl.isPresent()) {
+
+                                className =
+                                        recordDecl.get()
+                                                .getNameAsString();
+                            }
+                        }
+
+                        /*
+                         * Annotation
+                         */
+                        if (className == null) {
+
+                            var annotationDecl =
+                                    cu.findFirst(
+                                            AnnotationDeclaration.class);
+
+                            if (annotationDecl.isPresent()) {
+
+                                className =
+                                        annotationDecl.get()
+                                                .getNameAsString();
+                            }
+                        }
+
+                        metadata.setClassName(
+                                className);
 
                         cu.getImports()
                                 .forEach(importDecl ->
@@ -67,7 +144,7 @@ public class JavaParserService {
                                                 .add(importDecl.getNameAsString()));
 
                         cu.findAll(
-                                        com.github.javaparser.ast.body.ClassOrInterfaceDeclaration.class)
+                                        ClassOrInterfaceDeclaration.class)
                                 .forEach(clazz ->
                                         clazz.getAnnotations()
                                                 .forEach(annotation ->
