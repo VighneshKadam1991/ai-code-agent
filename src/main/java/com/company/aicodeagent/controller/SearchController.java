@@ -1,10 +1,7 @@
 package com.company.aicodeagent.controller;
 
 import com.company.aicodeagent.dto.*;
-import com.company.aicodeagent.entity.ApiFlowEntity;
-import com.company.aicodeagent.entity.ClassDependencyEntity;
-import com.company.aicodeagent.entity.JavaClassEntity;
-import com.company.aicodeagent.entity.MethodReferenceEntity;
+import com.company.aicodeagent.entity.*;
 import com.company.aicodeagent.repository.*;
 import com.company.aicodeagent.service.SearchService;
 import org.springframework.web.bind.annotation.*;
@@ -29,10 +26,12 @@ public class SearchController {
     private final FieldReferenceRepository fieldReferenceRepository;
 
     private final MethodReferenceRepository methodReferenceRepository;
+    private final MethodCallRepository methodCallRepository;
+
     public SearchController(SearchService searchService, ApiEndpointRepository apiEndpointRepository,
                             ApiFlowRepository apiFlowRepository, ClassDependencyRepository dependencyRepository,
                              JavaClassRepository  javaClassRepository,FieldReferenceRepository fieldReferenceRepository,
-                            MethodReferenceRepository methodReferenceRepository) {
+                            MethodReferenceRepository methodReferenceRepository,MethodCallRepository methodCallRepository) {
         this.searchService = searchService;
         this.apiEndpointRepository = apiEndpointRepository;
         this.apiFlowRepository =
@@ -44,6 +43,8 @@ public class SearchController {
                 fieldReferenceRepository;
         this.methodReferenceRepository =
                 methodReferenceRepository;
+        this.methodCallRepository =
+                methodCallRepository;
     }
 
     @GetMapping
@@ -292,6 +293,37 @@ public class SearchController {
                                 ref.getSourceClass(),
                                 ref.getMethodName()))
                 .toList();
+    }
+
+    @GetMapping(
+            "/method-call-impact")
+    public List<MethodCallImpactResponse>
+    methodCallImpact(
+            @RequestParam String entity,
+            @RequestParam String method) {
+
+        List<MethodCallEntity> calls =
+                methodCallRepository
+                        .findByTargetClassIgnoreCaseAndTargetMethodIgnoreCase(
+                                entity,
+                                method);
+
+        return calls.stream()
+                .map(call -> {
+
+                    MethodCallImpactResponse response =
+                            new MethodCallImpactResponse();
+
+                    response.setClassName(
+                            call.getSourceClass());
+
+                    response.setMethodName(
+                            call.getTargetMethod());
+
+                    return response;
+                })
+                .toList();
+
     }
 
 }

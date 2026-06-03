@@ -35,6 +35,8 @@ public class JavaIndexerService {
 
     private final VariableTypeRepository
             variableTypeRepository;
+    private final MethodCallRepository
+            methodCallRepository;
 
     private static final Set<String> IGNORED_TYPES =
             Set.of(
@@ -106,23 +108,20 @@ public class JavaIndexerService {
             FieldReferenceRepository fieldReferenceRepository,
             MethodReferenceRepository
                     methodReferenceRepository,VariableTypeRepository
-                    variableTypeRepository) {
+                    variableTypeRepository,
+            MethodCallRepository
+                    methodCallRepository) {
 
         this.repository = repository;
         this.parserService = parserService;
         this.dependencyRepository = dependencyRepository;
         this.apiEndpointRepository = apiEndpointRepository;
-        this.serviceDependencyRepository =
-                serviceDependencyRepository;
-        this.apiFlowRepository =
-                apiFlowRepository;
-        this.fieldReferenceRepository =
-                fieldReferenceRepository;
-        this.methodReferenceRepository =
-                methodReferenceRepository;
-
-        this.variableTypeRepository =
-                variableTypeRepository;
+        this.serviceDependencyRepository =                serviceDependencyRepository;
+        this.apiFlowRepository =                apiFlowRepository;
+        this.fieldReferenceRepository =                fieldReferenceRepository;
+        this.methodReferenceRepository =                methodReferenceRepository;
+        this.variableTypeRepository =                variableTypeRepository;
+        this.methodCallRepository =                methodCallRepository;
     }
 
     public int indexRepository(
@@ -369,6 +368,10 @@ public class JavaIndexerService {
                     metadata.getSourceCode(),
                     metadata.getClassName(),
                     repoName);
+            extractMethodCalls(
+                    repoName,
+                    metadata.getClassName(),
+                    metadata.getSourceCode());
         }
 
         System.out.println(
@@ -654,7 +657,7 @@ public class JavaIndexerService {
             entity.setRepoName(repoName);
             entity.setSourceClass(currentClass);
             entity.setVariableName(variable);
-            entity.setTypeName(type);
+            entity.setTypeName(normalizeType(type));
 
             variableTypeRepository.save(entity);
 
@@ -683,4 +686,83 @@ public class JavaIndexerService {
 
         return type;
     }
+
+    private void extractMethodCalls(
+            String repoName,
+            String currentClass,
+            String sourceCode) {
+        Set<String> uniqueCalls =
+                new HashSet<>();
+        Pattern pattern =
+                Pattern.compile(
+                        "(\\w+)\\.(\\w+)\\(");
+
+        Matcher matcher =
+                pattern.matcher(
+                        sourceCode);
+
+        while (matcher.find()) {
+
+            String variable =
+                    matcher.group(1);
+
+            String method =
+                    matcher.group(2);
+
+            List<VariableTypeEntity> variables =
+                    variableTypeRepository
+                            .findBySourceClassIgnoreCaseAndVariableNameIgnoreCase(
+                                    currentClass,
+                                    variable);
+
+            if (variables.isEmpty()) {
+                continue;
+            }
+
+            String targetClass =
+                    variables.get(0)
+                            .getTypeName();
+
+            if (targetClass == null) {
+                continue;
+            }
+            String key =
+                    currentClass
+                            + "|"
+                            + targetClass
+                            + "|"
+                            + method;
+            MethodCallEntity call =
+                    new MethodCallEntity();
+
+            call.setRepoName(
+                    repoName);
+
+            call.setSourceClass(
+                    currentClass);
+
+            call.setSourceMethod(
+                    "UNKNOWN");
+
+            call.setTargetClass(
+                    targetClass);
+
+            call.setTargetMethod(
+                    method);
+            if (!uniqueCalls.add(key)) {
+                continue;
+            }
+            methodCallRepository.save(
+                    call);
+
+            System.out.println(
+                    "METHOD CALL SAVED = "
+                            + currentClass
+                            + " -> "
+                            + targetClass
+                            + "."
+                            + method);
+        }
+    }
+
 }
