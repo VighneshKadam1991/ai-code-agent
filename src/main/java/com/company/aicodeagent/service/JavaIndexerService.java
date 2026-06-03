@@ -426,22 +426,25 @@ public class JavaIndexerService {
                 ref.setSourceClass(
                         currentClass);
 
-                String targetClass = null;
-            var variableType =
+            List<VariableTypeEntity> variables =
                     variableTypeRepository
                             .findBySourceClassIgnoreCaseAndVariableNameIgnoreCase(
                                     currentClass,
                                     variableName);
 
-            if (variableType.isPresent()) {
-
-                targetClass =
-                        variableType.get()
-                                .getTypeName();
+            if (variables.isEmpty()) {
+                continue;
             }
-                if (targetClass == null) {
-                    continue;
-                }
+
+            VariableTypeEntity variableType =
+                    variables.get(0);
+
+            String targetClass =
+                    variableType.getTypeName();
+
+            if (targetClass == null) {
+                continue;
+            }
 
             String key =
                     currentClass
@@ -513,22 +516,27 @@ public class JavaIndexerService {
                             + variable
                             + "."
                             + method);
-            String targetClass = null;
-            var variableType =
+
+            List<VariableTypeEntity> variables =
                     variableTypeRepository
                             .findBySourceClassIgnoreCaseAndVariableNameIgnoreCase(
                                     currentClass,
                                     variable);
 
-            if (variableType.isPresent()) {
-
-                targetClass =
-                        variableType.get()
-                                .getTypeName();
+            if (variables.isEmpty()) {
+                continue;
             }
+
+            VariableTypeEntity variableType =
+                    variables.get(0);
+
+            String targetClass =
+                    variableType.getTypeName();
+
             if (targetClass == null) {
                 continue;
             }
+
 
             String key =
                     currentClass
@@ -620,7 +628,8 @@ public class JavaIndexerService {
             entity.setRepoName(repoName);
             entity.setSourceClass(currentClass);
             entity.setVariableName(variable);
-            entity.setTypeName(type);
+            entity.setTypeName(
+                    normalizeType(type));
 
             variableTypeRepository.save(entity);
 
@@ -631,7 +640,7 @@ public class JavaIndexerService {
                             + type);
         }
 
-        /*while (matcher.find()) {
+        while (matcher.find()) {
 
             String type =
                     matcher.group(1);
@@ -654,6 +663,24 @@ public class JavaIndexerService {
                             + variable
                             + " -> "
                             + type);
-        }*/
+        }
+    }
+
+    private String normalizeType(
+            String type) {
+
+        if (type == null) {
+            return null;
+        }
+
+        if (type.contains("<")
+                && type.contains(">")) {
+
+            return type.substring(
+                    type.indexOf("<") + 1,
+                    type.indexOf(">"));
+        }
+
+        return type;
     }
 }
