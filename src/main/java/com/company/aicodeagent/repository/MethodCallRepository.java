@@ -14,4 +14,17 @@ public interface MethodCallRepository
     findByTargetClassIgnoreCaseAndTargetMethodIgnoreCase(
             String targetClass,
             String targetMethod);
+
+    List<MethodCallEntity>
+    findByTargetClassAndTargetMethod(
+            String targetClass,
+            String targetMethod);
+
+    List<MethodCallEntity>
+    findByTargetClass(
+            String targetClass);
+
+    List<MethodCallEntity>
+    findByRepoName(
+            String repoName);
 }

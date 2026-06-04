@@ -18,6 +18,26 @@ public class VariableTypeEntity {
 
     private String typeName;
 
+    private String filePath;
+
+    private Integer lineNumber;
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
+
+    public Integer getLineNumber() {
+        return lineNumber;
+    }
+
+    public void setLineNumber(Integer lineNumber) {
+        this.lineNumber = lineNumber;
+    }
+
     public Long getId() {
         return id;
     }

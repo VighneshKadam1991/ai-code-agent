@@ -3,6 +3,7 @@ package com.company.aicodeagent.controller;
 import com.company.aicodeagent.dto.*;
 import com.company.aicodeagent.entity.*;
 import com.company.aicodeagent.repository.*;
+import com.company.aicodeagent.service.ImpactAnalysisService;
 import com.company.aicodeagent.service.SearchService;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,11 +28,14 @@ public class SearchController {
 
     private final MethodReferenceRepository methodReferenceRepository;
     private final MethodCallRepository methodCallRepository;
-
+    private final ImpactAnalysisService
+            impactAnalysisService;
     public SearchController(SearchService searchService, ApiEndpointRepository apiEndpointRepository,
                             ApiFlowRepository apiFlowRepository, ClassDependencyRepository dependencyRepository,
                              JavaClassRepository  javaClassRepository,FieldReferenceRepository fieldReferenceRepository,
-                            MethodReferenceRepository methodReferenceRepository,MethodCallRepository methodCallRepository) {
+                            MethodReferenceRepository methodReferenceRepository,MethodCallRepository methodCallRepository,
+                            ImpactAnalysisService
+                                    impactAnalysisService) {
         this.searchService = searchService;
         this.apiEndpointRepository = apiEndpointRepository;
         this.apiFlowRepository =
@@ -45,6 +49,8 @@ public class SearchController {
                 methodReferenceRepository;
         this.methodCallRepository =
                 methodCallRepository;
+        this.impactAnalysisService =
+                impactAnalysisService;
     }
 
     @GetMapping
@@ -325,5 +331,18 @@ public class SearchController {
                 .toList();
 
     }
+
+    @PostMapping("/entity-rename")
+    public List<ImpactResultEntity>
+    analyzeEntityRename(
+            @RequestBody
+            EntityRenameRequest request) {
+
+        return impactAnalysisService
+                .analyzeEntityRename(
+                        request.getEntity());
+    }
+
+
 
 }

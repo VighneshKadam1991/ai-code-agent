@@ -37,6 +37,8 @@ public interface JavaClassRepository
     findByClassNameIgnoreCase(
             String className);
 
-
+    List<JavaClassEntity>
+    findByRepoName(
+            String repoName);
 
 }

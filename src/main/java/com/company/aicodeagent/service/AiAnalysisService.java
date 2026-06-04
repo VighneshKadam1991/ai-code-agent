@@ -411,4 +411,6 @@ public class AiAnalysisService {
 
         return classes;
     }
+
+
 }

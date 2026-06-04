@@ -17,4 +17,10 @@ public interface VariableTypeRepository
     findBySourceClassIgnoreCaseAndVariableNameIgnoreCase(
             String sourceClass,
             String variableName);
+
+    List<VariableTypeEntity>
+    findByTypeName(
+            String typeName);
+
+
 }

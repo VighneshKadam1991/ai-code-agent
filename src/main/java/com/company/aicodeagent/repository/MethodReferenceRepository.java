@@ -16,4 +16,13 @@ public interface MethodReferenceRepository
     findByTargetClassIgnoreCaseAndMethodNameIgnoreCase(
             String targetClass,
             String methodName);
+
+    List<MethodReferenceEntity>
+    findByTargetClassAndMethodName(
+            String targetClass,
+            String methodName);
+
+    List<MethodReferenceEntity>
+    findByTargetClass(
+            String targetClass);
 }

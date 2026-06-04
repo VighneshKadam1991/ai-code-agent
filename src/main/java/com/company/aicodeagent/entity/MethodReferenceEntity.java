@@ -16,6 +16,38 @@ public class MethodReferenceEntity {
     private String methodName;
     private String referenceType;
 
+    private String filePath;
+
+    private Integer lineNumber;
+
+    @Column(length = 2000)
+    private String codeSnippet;
+
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
+
+    public Integer getLineNumber() {
+        return lineNumber;
+    }
+
+    public void setLineNumber(Integer lineNumber) {
+        this.lineNumber = lineNumber;
+    }
+
+    public String getCodeSnippet() {
+        return codeSnippet;
+    }
+
+    public void setCodeSnippet(String codeSnippet) {
+        this.codeSnippet = codeSnippet;
+    }
+
     public Long getId() {
         return id;
     }

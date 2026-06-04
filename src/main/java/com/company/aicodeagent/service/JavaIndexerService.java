@@ -3,7 +3,15 @@ package com.company.aicodeagent.service;
 import com.company.aicodeagent.entity.*;
 import com.company.aicodeagent.parser.ClassMetadata;
 import com.company.aicodeagent.repository.*;
+import com.github.javaparser.Range;
+import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.MethodDeclaration;
 import org.springframework.stereotype.Service;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +45,10 @@ public class JavaIndexerService {
             variableTypeRepository;
     private final MethodCallRepository
             methodCallRepository;
+
+    private final RepositoryDependencyRepository
+            repositoryDependencyRepository;
+
 
     private static final Set<String> IGNORED_TYPES =
             Set.of(
@@ -110,7 +122,8 @@ public class JavaIndexerService {
                     methodReferenceRepository,VariableTypeRepository
                     variableTypeRepository,
             MethodCallRepository
-                    methodCallRepository) {
+                    methodCallRepository,RepositoryDependencyRepository
+                    repositoryDependencyRepository) {
 
         this.repository = repository;
         this.parserService = parserService;
@@ -122,6 +135,7 @@ public class JavaIndexerService {
         this.methodReferenceRepository =                methodReferenceRepository;
         this.variableTypeRepository =                variableTypeRepository;
         this.methodCallRepository =                methodCallRepository;
+        this.repositoryDependencyRepository =                repositoryDependencyRepository;
     }
 
     public int indexRepository(
@@ -134,7 +148,9 @@ public class JavaIndexerService {
                         repoFolder);
 
         int savedClasses = 0;
-
+        extractPomDependencies(
+                repoName,
+                repoFolder.toPath());
         for (ClassMetadata metadata : classes) {
 
             if (metadata.getClassName() == null
@@ -280,7 +296,7 @@ public class JavaIndexerService {
                 }
             }
 
-            for (ServiceDependencyMetadata dependency :
+           /* for (ServiceDependencyMetadata dependency :
                     metadata.getServiceDependencies()) {
 
                 ServiceDependencyEntity serviceEntity =
@@ -306,7 +322,7 @@ public class JavaIndexerService {
                                 + dependency.getSourceService()
                                 + " -> "
                                 + dependency.getTargetService());
-            }
+            }*/
 
             Set<String> uniqueDependencies =
                     new HashSet<>(
@@ -357,18 +373,31 @@ public class JavaIndexerService {
             extractVariableTypes(
                     repoName,
                     metadata.getClassName(),
-                    metadata.getSourceCode());
+                    metadata.getSourceCode(),
+                    metadata.getFilePath());
 
             extractFieldReferences(
                     metadata.getSourceCode(),
                     metadata.getClassName(),
-                    repoName);
+                    repoName,
+                    metadata.getFilePath());
 
             extractMethodReferences(
                     metadata.getSourceCode(),
                     metadata.getClassName(),
-                    repoName);
+                    repoName,
+                    metadata.getFilePath());
+
             extractMethodCalls(
+                    repoName,
+                    metadata.getClassName(),
+                    metadata.getSourceCode(),
+                    metadata.getFilePath());
+            extractFeignClients(
+                    repoName,
+                    metadata.getClassName(),
+                    metadata.getSourceCode());
+            extractRestTemplateCalls(
                     repoName,
                     metadata.getClassName(),
                     metadata.getSourceCode());
@@ -384,7 +413,8 @@ public class JavaIndexerService {
     private void extractFieldReferences(
             String sourceCode,
             String currentClass,
-            String repoName) {
+            String repoName,
+            String filePath) {
 
         Set<String> uniqueReferences =
                 new HashSet<>();
@@ -428,6 +458,17 @@ public class JavaIndexerService {
 
                 ref.setSourceClass(
                         currentClass);
+
+            ref.setFilePath(
+                    filePath);
+
+            ref.setLineNumber(
+                    getLineNumber(
+                            sourceCode,
+                            matcher.start()));
+
+            ref.setCodeSnippet(
+                    matcher.group());
 
             List<VariableTypeEntity> variables =
                     variableTypeRepository
@@ -483,7 +524,8 @@ public class JavaIndexerService {
     private void extractMethodReferences(
             String sourceCode,
             String currentClass,
-            String repoName) {
+            String repoName,
+            String filePath) {
 
         if (sourceCode == null
                 || sourceCode.isBlank()) {
@@ -568,6 +610,17 @@ public class JavaIndexerService {
             ref.setMethodName(
                     method);
 
+            ref.setFilePath(
+                    filePath);
+
+            ref.setLineNumber(
+                    getLineNumber(
+                            sourceCode,
+                            matcher.start()));
+
+            ref.setCodeSnippet(
+                    matcher.group());
+
             ref.setReferenceType(
                     "METHOD_CALL");
             System.out.println(
@@ -595,7 +648,8 @@ public class JavaIndexerService {
     private void extractVariableTypes(
             String repoName,
             String currentClass,
-            String sourceCode) {
+            String sourceCode,
+            String filePath) {
 
         System.out.println(
                 "VARIABLE TYPE SCAN = "
@@ -633,6 +687,12 @@ public class JavaIndexerService {
             entity.setVariableName(variable);
             entity.setTypeName(
                     normalizeType(type));
+            entity.setFilePath(
+                    filePath);
+            entity.setLineNumber(
+                    getLineNumber(
+                            sourceCode,
+                            fieldMatcher.start()));
 
             variableTypeRepository.save(entity);
 
@@ -658,6 +718,13 @@ public class JavaIndexerService {
             entity.setSourceClass(currentClass);
             entity.setVariableName(variable);
             entity.setTypeName(normalizeType(type));
+            entity.setFilePath(
+                    filePath);
+
+            entity.setLineNumber(
+                    getLineNumber(
+                            sourceCode,
+                            matcher.start()));
 
             variableTypeRepository.save(entity);
 
@@ -690,16 +757,32 @@ public class JavaIndexerService {
     private void extractMethodCalls(
             String repoName,
             String currentClass,
-            String sourceCode) {
+            String sourceCode,
+            String filePath) {
+        System.out.println(
+                "SOURCE CODE = \n"
+                        + sourceCode);
+        System.out.println(
+                "SCANNING METHOD CALLS FOR "
+                        + currentClass);
         Set<String> uniqueCalls =
                 new HashSet<>();
+        String normalizedCode =
+                sourceCode.replaceAll(
+                        "\\s+",
+                        " ");
         Pattern pattern =
                 Pattern.compile(
-                        "(\\w+)\\.(\\w+)\\(");
-
+                        "(\\w+)\\s*\\.\\s*(\\w+)\\s*\\(");
+        System.out.println(
+                "PATTERN = "
+                        + pattern);
         Matcher matcher =
                 pattern.matcher(
-                        sourceCode);
+                        normalizedCode);
+        System.out.println(
+                "NORMALIZED = "
+                        + normalizedCode);
 
         while (matcher.find()) {
 
@@ -709,12 +792,34 @@ public class JavaIndexerService {
             String method =
                     matcher.group(2);
 
+            int callPosition =
+                    matcher.start();
+
+            String sourceMethod =
+                    findContainingMethod(
+                            sourceCode,
+                            variable,
+                            method);
+
             List<VariableTypeEntity> variables =
                     variableTypeRepository
                             .findBySourceClassIgnoreCaseAndVariableNameIgnoreCase(
                                     currentClass,
                                     variable);
+            System.out.println(
+                    "METHOD CALL FOUND = "
+                            + variable
+                            + "."
+                            + method);
+            System.out.println(
+                    "LOOKUP VARIABLE = "
+                            + currentClass
+                            + "."
+                            + variable);
 
+            System.out.println(
+                    "FOUND COUNT = "
+                            + variables.size());
             if (variables.isEmpty()) {
                 continue;
             }
@@ -729,6 +834,8 @@ public class JavaIndexerService {
             String key =
                     currentClass
                             + "|"
+                            + sourceMethod
+                            + "|"
                             + targetClass
                             + "|"
                             + method;
@@ -742,13 +849,25 @@ public class JavaIndexerService {
                     currentClass);
 
             call.setSourceMethod(
-                    "UNKNOWN");
+                    sourceMethod);
 
             call.setTargetClass(
                     targetClass);
 
             call.setTargetMethod(
                     method);
+
+            call.setFilePath(
+                    filePath);
+
+            call.setLineNumber(
+                    getLineNumber(
+                            sourceCode,
+                            matcher.start()));
+
+            call.setCodeSnippet(
+                    matcher.group());
+
             if (!uniqueCalls.add(key)) {
                 continue;
             }
@@ -763,6 +882,264 @@ public class JavaIndexerService {
                             + "."
                             + method);
         }
+    }
+
+    private String findContainingMethod(
+            String sourceCode,
+            String variable,
+            String methodName) {
+
+        try {
+
+            CompilationUnit cu =
+                    StaticJavaParser.parse(
+                            sourceCode);
+
+            for (MethodDeclaration method :
+                    cu.findAll(
+                            MethodDeclaration.class)) {
+
+                String normalized =
+                        method.toString()
+                                .replaceAll(
+                                        "\\s+",
+                                        " ");
+
+                String target =
+                        variable
+                                + " ."
+                                + methodName;
+
+                if (normalized.contains(target)
+                        || normalized.contains(
+                        variable + "." + methodName)) {
+
+                    return method
+                            .getNameAsString();
+                }
+            }
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+        }
+
+        return "UNKNOWN";
+    }
+
+
+    private void extractPomDependencies(
+            String repoName,
+            Path repoDir) {
+
+        try {
+
+            Path pomFile =
+                    repoDir.resolve(
+                            "pom.xml");
+
+            if (!Files.exists(
+                    pomFile)) {
+
+                return;
+            }
+
+            String pom =
+                    Files.readString(
+                            pomFile);
+
+            Pattern pattern =
+                    Pattern.compile(
+                            "<artifactId>(.*?)</artifactId>");
+
+            Matcher matcher =
+                    pattern.matcher(
+                            pom);
+
+            while (matcher.find()) {
+
+                String artifactId =
+                        matcher.group(1);
+
+                System.out.println(
+                        "DEPENDENCY = "
+                                + artifactId);
+                RepositoryDependencyEntity entity =
+                        new RepositoryDependencyEntity();
+
+                entity.setSourceRepo(
+                        repoName);
+
+                entity.setTargetRepo(
+                        artifactId);
+
+                entity.setDependencyType(
+                        "MAVEN");
+
+                entity.setDependencyName(
+                        artifactId);
+
+                repositoryDependencyRepository
+                        .save(entity);
+
+            }
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+        }
+    }
+
+    private void extractFeignClients(
+            String repoName,
+            String currentClass,
+            String sourceCode) {
+
+        Pattern pattern =
+                Pattern.compile(
+                        "@FeignClient\\([^)]*(?:name|value)\\s*=\\s*\"([^\"]+)\"");
+
+        Matcher matcher =
+                pattern.matcher(sourceCode);
+
+        while (matcher.find()) {
+
+            String targetService =
+                    matcher.group(1).trim();
+
+            System.out.println(
+                    "FEIGN TARGET = "
+                            + targetService);
+
+            ServiceDependencyEntity entity =
+                    new ServiceDependencyEntity();
+
+            entity.setRepoName(repoName);
+            entity.setSourceService(repoName);
+            entity.setTargetService(targetService);
+            entity.setClientType("FEIGN");
+
+            serviceDependencyRepository.save(entity);
+        }
+    }
+
+    private void extractRestTemplateCalls(
+            String repoName,
+            String currentClass,
+            String sourceCode) {
+
+        Pattern pattern =
+                Pattern.compile(
+                        "http://([^/\"\\s]+)");
+
+        Matcher matcher =
+                pattern.matcher(
+                        sourceCode);
+
+        while (matcher.find()) {
+
+            String targetService =
+                    matcher.group(1);
+
+            if (!serviceDependencyRepository
+                    .existsBySourceServiceAndTargetServiceAndClientType(
+                            repoName,
+                            targetService,
+                            "REST_TEMPLATE")) {
+
+                ServiceDependencyEntity entity =
+                        new ServiceDependencyEntity();
+
+                entity.setRepoName(
+                        repoName);
+
+                entity.setSourceService(
+                        repoName);
+
+                entity.setTargetService(
+                        targetService);
+
+                entity.setClientType(
+                        "REST_TEMPLATE");
+
+                serviceDependencyRepository
+                        .save(entity);
+
+                System.out.println(
+                        "REST SAVED = "
+                                + repoName
+                                + " -> "
+                                + targetService);
+            }
+        }
+    }
+
+
+    private static class MethodRange {
+
+        String methodName;
+
+        int start;
+
+        int end;
+
+        MethodRange(
+                String methodName,
+                int start,
+                int end) {
+
+            this.methodName = methodName;
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    private List<MethodRange> extractMethodRanges(
+            String sourceCode) {
+
+        List<MethodRange> methods =
+                new ArrayList<>();
+
+        try {
+
+            CompilationUnit cu =
+                    StaticJavaParser.parse(
+                            sourceCode);
+
+            cu.findAll(MethodDeclaration.class)
+                    .forEach(method -> {
+
+                        if (method.getRange().isEmpty()) {
+                            return;
+                        }
+
+                        Range range =
+                                method.getRange().get();
+
+                        methods.add(
+                                new MethodRange(
+                                        method.getNameAsString(),
+                                        range.begin.line,
+                                        range.end.line));
+                    });
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+        }
+
+        return methods;
+    }
+
+    private int getLineNumber(
+            String sourceCode,
+            int position) {
+
+        return sourceCode.substring(
+                        0,
+                        position)
+                .split("\n")
+                .length;
     }
 
 }
