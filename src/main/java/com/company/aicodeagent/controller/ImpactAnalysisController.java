@@ -128,4 +128,27 @@ public class ImpactAnalysisController {
                         request);
     }
 
+    @PostMapping(
+            "/service-field-change")
+    public List<CodeChangeImpact>
+    serviceFieldChange(
+            @RequestBody
+            ServiceFieldChangeRequest request) {
+
+        return impactAnalysisService
+                .serviceFieldChangeImpact(
+                        request);
+    }
+
+    @PostMapping(
+            "/service-method-change")
+    public List<CodeChangeImpact>
+    methodRename(
+            @RequestBody
+            MethodChangeRequest request) {
+
+        return impactAnalysisService
+                .serviceMethodChangeImpact(
+                        request);
+    }
 }

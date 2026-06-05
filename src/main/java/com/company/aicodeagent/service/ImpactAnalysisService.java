@@ -1165,4 +1165,185 @@ public class ImpactAnalysisService {
 
         return results;
     }
+
+    public List<CodeChangeImpact>
+    serviceFieldChangeImpact(
+            ServiceFieldChangeRequest request) {
+
+
+        Set<String> seen =
+                new HashSet<>();
+
+        List<CodeChangeImpact> results =
+                new ArrayList<>();
+
+        List<ServiceDependencyEntity> dependencies =
+                serviceDependencyRepository
+                        .findByTargetService(
+                                request.getService());
+
+        for (ServiceDependencyEntity dependency :
+                dependencies) {
+
+            List<FieldReferenceEntity> fieldRefs =
+                    fieldReferenceRepository
+                            .findByFieldNameIgnoreCase(
+                                    request.getOldField());
+
+            System.out.println(
+                    "FIELD REF COUNT = "
+                            + fieldRefs.size());
+
+            for (FieldReferenceEntity ref :
+                    fieldRefs) {
+
+                if (!ref.getRepoName()
+                        .equals(
+                                dependency.getRepoName())) {
+
+                    continue;
+                }
+
+                CodeChangeImpact impact =
+                        new CodeChangeImpact();
+
+                impact.setRepo(
+                        ref.getRepoName());
+
+                impact.setFile(
+                        ref.getFilePath());
+
+                impact.setLine(
+                        ref.getLineNumber());
+
+                impact.setOldCode(
+                        ref.getCodeSnippet());
+
+                String newCode =
+                        ref.getCodeSnippet()
+                                .replace(
+                                        request.getOldField(),
+                                        request.getNewField());
+
+                newCode =
+                        newCode.replace(
+                                capitalize(
+                                        request.getOldField()),
+                                capitalize(
+                                        request.getNewField()));
+
+                impact.setNewCode(
+                        newCode);
+
+                impact.setImpactType(
+                        "SERVICE_FIELD_CHANGE");
+
+                impact.setRequiresCodeChange(
+                        true);
+
+                String key =
+                        impact.getFile()
+                                + "|"
+                                + impact.getLine()
+                                + "|"
+                                + impact.getImpactType();
+
+                if (seen.add(key)) {
+
+                    results.add(
+                            impact);
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private String capitalize(
+            String value) {
+
+        if (value == null
+                || value.isEmpty()) {
+
+            return value;
+        }
+
+        return value.substring(
+                0,
+                1).toUpperCase()
+                + value.substring(
+                1);
+    }
+
+    public List<CodeChangeImpact>
+    serviceFieldChangeImpact(
+            ChangeAnalysisRequest request) {
+
+        ServiceFieldChangeRequest dto =
+                new ServiceFieldChangeRequest();
+
+        dto.setService(
+                request.getService());
+
+        dto.setEntity(
+                request.getEntity());
+
+        dto.setOldField(
+                request.getOldField());
+
+        dto.setNewField(
+                request.getNewField());
+
+        return serviceFieldChangeImpact(
+                dto);
+    }
+
+    public List<CodeChangeImpact>
+    serviceMethodChangeImpact(
+            MethodChangeRequest request) {
+
+        List<CodeChangeImpact> impacts =
+                new ArrayList<>();
+
+        List<MethodCallEntity> calls =
+                methodCallRepository
+                        .findByTargetClassIgnoreCaseAndTargetMethodIgnoreCase(
+                                request.getClassName(),
+                                request.getOldMethod());
+
+        for (MethodCallEntity call : calls) {
+
+            CodeChangeImpact impact =
+                    new CodeChangeImpact();
+
+            impact.setRepo(
+                    call.getRepoName());
+
+            impact.setFile(
+                    call.getFilePath());
+
+            impact.setLine(
+                    call.getLineNumber());
+
+            impact.setOldCode(
+                    call.getTargetMethod()
+                            + "(");
+
+            impact.setNewCode(
+                    request.getNewMethod()
+                            + "(");
+
+            impact.setImpactType(
+                    "METHOD_RENAME");
+
+            impact.setRequiresCodeChange(
+                    true);
+
+            impacts.add(
+                    impact);
+        }
+
+        return impacts;
+    }
+
 }

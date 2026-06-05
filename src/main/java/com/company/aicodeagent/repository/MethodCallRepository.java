@@ -27,4 +27,8 @@ public interface MethodCallRepository
     List<MethodCallEntity>
     findByRepoName(
             String repoName);
+
+    List<MethodCallEntity>
+    findByTargetMethodIgnoreCase(
+            String targetMethod);
 }

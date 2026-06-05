@@ -7,6 +7,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
+
 @Repository
 public interface JavaClassRepository
         extends JpaRepository<JavaClassEntity, Long> {
@@ -40,5 +42,8 @@ public interface JavaClassRepository
     List<JavaClassEntity>
     findByRepoName(
             String repoName);
+
+    Optional<JavaClassEntity>
+    findByFilePath(String filePath);
 
 }

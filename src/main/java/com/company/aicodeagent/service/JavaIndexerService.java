@@ -376,6 +376,12 @@ public class JavaIndexerService {
                     metadata.getSourceCode(),
                     metadata.getFilePath());
 
+            extractMethodParameterTypes(
+                    repoName,
+                    metadata.getClassName(),
+                    metadata.getSourceCode(),
+                    metadata.getFilePath());
+
             extractFieldReferences(
                     metadata.getSourceCode(),
                     metadata.getClassName(),
@@ -421,12 +427,12 @@ public class JavaIndexerService {
         System.out.println(
                 "FIELD REFERENCE SCAN: "
                         + currentClass);
-        Pattern getterPattern =
+        Pattern pattern =
                 Pattern.compile(
-                        "(\\w+)\\.get([A-Z]\\w+)\\(");
+                        "(\\w+)\\s*\\.\\s*(get|set)([A-Z]\\w+)\\s*\\(");
 
         Matcher matcher =
-                getterPattern.matcher(
+                pattern.matcher(
                         sourceCode);
 
 
@@ -435,10 +441,17 @@ public class JavaIndexerService {
             String variableName =
                     matcher.group(1);
 
-            String fieldName =
+            String accessType =
                     matcher.group(2);
 
+            String fieldName =
+                    matcher.group(3);
 
+            System.out.println(
+                    "FIELD REF FOUND = "
+                            + variableName
+                            + "."
+                            + fieldName);
 
             System.out.println(
                     variableName
@@ -475,7 +488,15 @@ public class JavaIndexerService {
                             .findBySourceClassIgnoreCaseAndVariableNameIgnoreCase(
                                     currentClass,
                                     variableName);
+            System.out.println(
+                    "LOOKUP = "
+                            + currentClass
+                            + "."
+                            + variableName);
 
+            System.out.println(
+                    "FOUND VARIABLES = "
+                            + variables.size());
             if (variables.isEmpty()) {
                 continue;
             }
@@ -502,8 +523,11 @@ public class JavaIndexerService {
                 ref.setFieldName(
                         fieldName.toLowerCase());
 
-                ref.setReferenceType(
-                        "GETTER");
+            ref.setReferenceType(
+                    accessType.equals("get")
+                            ? "GETTER"
+                            : "SETTER");
+
             System.out.println(
                     "SAVING FIELD REF = "
                             + currentClass
@@ -515,6 +539,15 @@ public class JavaIndexerService {
                 if (!uniqueReferences.add(key)) {
                     continue;
                 }
+
+            System.out.println(
+                    "SAVING FIELD REF = "
+                            + currentClass
+                            + " -> "
+                            + targetClass
+                            + "."
+                            + fieldName);
+
                 fieldReferenceRepository
                         .save(ref);
             //}
@@ -1140,6 +1173,60 @@ public class JavaIndexerService {
                         position)
                 .split("\n")
                 .length;
+    }
+
+    private void extractMethodParameterTypes(
+            String repoName,
+            String currentClass,
+            String sourceCode,
+            String filePath) {
+
+        try {
+
+            CompilationUnit cu =
+                    StaticJavaParser.parse(
+                            sourceCode);
+
+            cu.findAll(MethodDeclaration.class)
+                    .forEach(method -> {
+
+                        method.getParameters()
+                                .forEach(parameter -> {
+
+                                    VariableTypeEntity entity =
+                                            new VariableTypeEntity();
+
+                                    entity.setRepoName(
+                                            repoName);
+
+                                    entity.setSourceClass(
+                                            currentClass);
+
+                                    entity.setVariableName(
+                                            parameter.getNameAsString());
+
+                                    entity.setTypeName(
+                                            normalizeType(
+                                                    parameter.getTypeAsString()));
+
+                                    entity.setFilePath(
+                                            filePath);
+
+                                    variableTypeRepository
+                                            .save(entity);
+
+                                    System.out.println(
+                                            "PARAMETER TYPE SAVED = "
+                                                    + parameter.getNameAsString()
+                                                    + " -> "
+                                                    + parameter.getTypeAsString());
+                                });
+                    });
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+        }
     }
 
 }

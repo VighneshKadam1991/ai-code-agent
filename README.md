@@ -2,452 +2,690 @@
 
 ## Overview
 
-AI Code Impact Analysis Platform is a Spring Boot application that indexes Java microservice repositories, builds a dependency graph, and uses Claude AI to analyze change requests and identify impacted code.
+AI Code Impact Analysis Platform is a Java Spring Boot application that performs multi-repository impact analysis using static code analysis, dependency graph generation, and AI-assisted change planning.
 
-The platform helps developers answer questions such as:
+The platform helps engineering teams understand the impact of:
 
-* Which files need to change if a domain object is renamed?
-* Which services are affected by a bug fix?
-* What repositories, controllers, entities, and tests must be updated?
-* What database changes are required?
-* What implementation risks exist?
+* Field renames
+* Method renames
+* API endpoint changes
+* Entity changes
+* Service-to-service contract changes
 
-Example:
+across multiple repositories before making code changes.
 
-**Input**
+The platform can:
 
-```text
-Owner renamed to Customer
-```
-
-**Output**
-
-```text
-Impacted Files:
-- Owner.java
-- OwnerRepository.java
-- OwnerController.java
-- PetController.java
-
-Database Changes:
-- Rename owners table
-- Rename owner_id column
-
-Risks:
-- REST API breaking changes
-
-Suggested Code Changes:
-- Rename class Owner -> Customer
-- Update repositories
-- Update imports
-- Update controllers
-```
+* Index Java repositories
+* Build dependency graphs
+* Discover service dependencies
+* Track method calls
+* Track field references
+* Detect affected repositories
+* Detect affected files
+* Generate migration plans
+* Generate deployment order recommendations
+* Generate code patches
+* Generate full updated Java files using Claude AI
 
 ---
 
 # Architecture
 
 ```text
-GitHub Repositories
-         |
-         v
- Repository Indexer
-         |
-         v
-   Java Parser
-         |
-         v
- PostgreSQL Storage
-         |
-         +-------------------+
-         |                   |
-         v                   v
- java_classes      class_dependencies
-         |                   |
-         +---------+---------+
-                   |
-                   v
-          Impact Analysis
-                   |
-                   v
-           Prompt Builder
-                   |
-                   v
-            Claude Sonnet
-                   |
-                   v
-       Change Recommendations
-```
+Git Repositories
+       |
+       v
+Repository Indexer
+       |
+       v
+Java Parser (JavaParser)
+       |
+       v
+Metadata Database
 
----
+java_classes
+method_calls
+field_references
+service_dependencies
+variable_types
 
-# Features
-
-## Repository Indexing
-
-Clone and index GitHub repositories.
-
-Stores:
-
-* Class Name
-* Package Name
-* Methods
-* Fields
-* Imports
-* Annotations
-* Source Code
-* File Paths
-
----
-
-## Dependency Graph
-
-Automatically builds relationships between classes.
-
-Example:
-
-```text
-OwnerController -> OwnerRepository
-
-PetController -> OwnerRepository
-
-Pet -> Owner
-```
-
-Used for impact analysis.
-
----
-
-## Impact Analysis
-
-Given a change request:
-
-```text
-Owner renamed to Customer
-```
-
-The platform determines:
-
-* Directly impacted classes
-* Indirectly impacted classes
-* Repository layer changes
-* Controller changes
-* Database changes
-
----
-
-## Claude AI Integration
-
-Uses Claude Sonnet to:
-
-* Analyze impacted source code
-* Recommend code changes
-* Recommend database changes
-* Identify implementation risks
-* Produce migration plans
-
----
-
-# Technology Stack
-
-## Backend
-
-* Java 21+
-* Spring Boot
-* Spring Data JPA
-* Spring WebClient
-
-## Parsing
-
-* JavaParser
-
-## Database
-
-* PostgreSQL
-* Docker
-
-## AI
-
-* Claude Sonnet
-* Anthropic API
-
-## Build
-
-* Maven
-
----
-
-# Project Structure
-
-```text
-src/main/java/com/company/aicodeagent
-
-config/
-    ClaudeConfig.java
-
-controller/
-    RepositoryController.java
-    AnalysisController.java
-    DependencyAnalysisController.java
-    AiAnalysisController.java
-
-dto/
-    AiAnalysisRequest.java
-    AiAnalysisResponse.java
-    ClaudeResponse.java
-    ClaudeContent.java
-
-entity/
-    JavaClassEntity.java
-    ClassDependencyEntity.java
-
-parser/
-    JavaClassVisitor.java
-    ClassMetadata.java
-
-repository/
-    JavaClassRepository.java
-    ClassDependencyRepository.java
-
-service/
-    JavaParserService.java
-    JavaIndexerService.java
-    DependencyTraversalService.java
-    GraphTraversalService.java
-    PromptBuilderService.java
-    ClaudeService.java
-    AiAnalysisService.java
+       |
+       v
+Impact Analysis Engine
+       |
+       v
+Claude AI
+       |
+       v
+Migration Plan
+Deployment Plan
+Code Changes
+Updated Files
 ```
 
 ---
 
 # Prerequisites
 
-Install:
-
 * Java 21+
 * Maven 3.9+
-* Docker Desktop
+* PostgreSQL
+* Claude API Key
 * Git
 
-Create an Anthropic account and obtain an API key.
-
 ---
 
-# Running PostgreSQL
+# Database Setup
 
-```bash
-docker run --name ai-code-agent-db \
--e POSTGRES_PASSWORD=postgres \
--e POSTGRES_DB=codeagent \
--p 5432:5432 \
--d postgres:16
+Create PostgreSQL database:
+
+```sql
+create database codeagent;
 ```
 
-Verify:
+Configure:
 
-```bash
-docker ps
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/codeagent
+spring.datasource.username=postgres
+spring.datasource.password=password
 ```
 
----
-
-# Application Configuration
-
-Create:
-
-```yaml
-application.yml
-```
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/codeagent
-    username: postgres
-    password: postgres
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-
-anthropic:
-  api-key: YOUR_ANTHROPIC_API_KEY
-
-claude:
-  model: claude-sonnet-4-20250514
-```
-
----
-
-# Build
+Run application:
 
 ```bash
 mvn clean install
-```
-
----
-
-# Run
-
-```bash
 mvn spring-boot:run
 ```
 
-Application starts on:
-
-```text
-http://localhost:8080
-```
-
 ---
 
-# API Endpoints
+# Step 1 - Index Repositories
 
-## Index Repository
+Every repository must be indexed before impact analysis can be performed.
 
-### Request
+Example:
 
-```http
-POST /repositories/index
+```bash
+curl -X POST "http://localhost:8080/repositories/index" \
+-H "Content-Type: application/json" \
+-d '{
+  "repoUrl":"https://github.com/company/customer-service.git"
+}'
 ```
 
-```json
-{
-  "repoUrl":"https://github.com/spring-projects/spring-petclinic.git"
-}
+Index all repositories:
+
+```bash
+customer-service
+billing-service
+order-service
+notification-service
+customer-client
 ```
 
-### Response
-
-```text
-Indexed classes: 47
-```
-
----
-
-## Dependency Analysis
-
-### Request
-
-```http
-POST /analysis/dependencies
-```
-
-```json
-{
-  "issue":"OwnerRepository"
-}
-```
-
-### Response
-
-```text
-Root Impact: OwnerRepository
-
-Affected Class: OwnerController
-
-Affected Class: PetController
-```
-
----
-
-## AI Analysis
-
-### Request
-
-```http
-POST /analysis/ai
-```
-
-```json
-{
-  "issue":"Owner renamed to Customer"
-}
-```
-
-### Response
-
-```json
-{
-  "response":"Impact analysis generated by Claude"
-}
-```
-
----
-
-# Example Workflow
-
-## Step 1
-
-Index repository:
+Example:
 
 ```bash
 curl -X POST http://localhost:8080/repositories/index \
--H "Content-Type: application/json" \
--d '{"repoUrl":"https://github.com/spring-projects/spring-petclinic.git"}'
+-d '{"repoUrl":"https://github.com/company/customer-service.git"}'
+
+curl -X POST http://localhost:8080/repositories/index \
+-d '{"repoUrl":"https://github.com/company/billing-service.git"}'
+
+curl -X POST http://localhost:8080/repositories/index \
+-d '{"repoUrl":"https://github.com/company/customer-client.git"}'
+```
+
+The platform will:
+
+* Clone repository
+* Parse Java files
+* Extract classes
+* Extract fields
+* Extract methods
+* Extract method calls
+* Extract service dependencies
+* Store metadata in PostgreSQL
+
+---
+
+# Step 2 - Verify Repository Discovery
+
+Check indexed classes:
+
+```sql
+select *
+from java_classes;
+```
+
+Check method calls:
+
+```sql
+select *
+from method_calls;
+```
+
+Check service dependencies:
+
+```sql
+select *
+from service_dependencies;
 ```
 
 ---
 
-## Step 2
+# Step 3 - Field Rename Impact Analysis
 
-Run AI analysis:
+Example scenario:
+
+Customer service changes:
+
+```java
+private String lastName;
+```
+
+to
+
+```java
+private String surname;
+```
+
+Request:
 
 ```bash
-curl -X POST http://localhost:8080/analysis/ai \
+curl -X POST \
+"http://localhost:8080/impact/service-field-change" \
 -H "Content-Type: application/json" \
--d '{"issue":"Owner renamed to Customer"}'
+-d '{
+  "service":"customer-service",
+  "entity":"Customer",
+  "oldField":"lastName",
+  "newField":"surname"
+}'
+```
+
+Response:
+
+```json
+[
+  {
+    "repo":"CustomerClient",
+    "file":"CustomerMapper.java",
+    "oldCode":"getLastName(",
+    "newCode":"getSurname("
+  },
+  {
+    "repo":"BillingService",
+    "file":"BillingMapper.java",
+    "oldCode":"getLastName(",
+    "newCode":"getSurname("
+  }
+]
 ```
 
 ---
 
-## Step 3
+# Step 4 - Method Rename Impact Analysis
 
-Review:
+Example:
 
-* Impacted files
-* Dependency chain
-* Database changes
-* Risks
-* Suggested implementation steps
+```java
+getCustomer()
+```
+
+becomes:
+
+```java
+fetchCustomer()
+```
+
+Request:
+
+```bash
+curl -X POST \
+"http://localhost:8080/impact/service-method-change" \
+-H "Content-Type: application/json" \
+-d '{
+  "className":"CustomerClient",
+  "oldMethod":"getCustomer",
+  "newMethod":"fetchCustomer"
+}'
+```
+
+Response:
+
+```json
+[
+  {
+    "repo":"CustomerClient",
+    "file":"CustomerGateway.java",
+    "oldCode":"getCustomer(",
+    "newCode":"fetchCustomer("
+  }
+]
+```
 
 ---
 
-# Future Enhancements
+# Step 5 - API Endpoint Impact Analysis
 
-## Neo4j Graph Database
+Example:
 
-Replace relational dependency storage with Neo4j for advanced graph traversal.
+```text
+/customer
+```
+
+becomes:
+
+```text
+/customer/v2
+```
+
+Request:
+
+```bash
+curl -X POST \
+"http://localhost:8080/impact/service-api-change" \
+-H "Content-Type: application/json" \
+-d '{
+  "service":"customer-service",
+  "oldEndpoint":"/customer",
+  "newEndpoint":"/customer/v2"
+}'
+```
+
+Response:
+
+```json
+[
+  {
+    "repo":"CustomerClient",
+    "file":"CustomerGateway.java"
+  }
+]
+```
 
 ---
 
-## Multi-Repository Analysis
+# Step 6 - AI Change Analysis
 
-Support analysis across dozens of microservices.
+Natural language request:
+
+```bash
+curl -X POST \
+"http://localhost:8080/analysis/ai/chat" \
+-H "Content-Type: application/json" \
+-d '{
+  "prompt":"Rename Customer.lastName to surname in customer-service"
+}'
+```
+
+Response:
+
+```json
+{
+  "summary":"...",
+  "risk":"...",
+  "migrationPlan":"...",
+  "deploymentOrder":"...",
+  "impacts":[]
+}
+```
+
+The platform uses Claude to:
+
+* Understand change request
+* Determine change type
+* Generate migration plan
+* Generate deployment strategy
+* Assess risk
 
 ---
 
-## GitHub Pull Request Generation
+# Step 7 - AI Patch Generation
 
-Automatically generate pull requests based on AI recommendations.
+Generate exact code modifications.
+
+Request:
+
+```bash
+curl -X POST \
+"http://localhost:8080/analysis/ai/generate-patch" \
+-H "Content-Type: application/json" \
+-d '{
+  "prompt":"Rename Customer.lastName to surname in customer-service"
+}'
+```
+
+Response:
+
+```json
+[
+  {
+    "repo":"BillingService",
+    "file":"BillingMapper.java",
+    "originalCode":"getLastName(",
+    "updatedCode":"getSurname("
+  }
+]
+```
 
 ---
 
-## React UI
+# Step 8 - Full File Generation
 
-Provide a web interface for architects, developers, and platform teams.
+Generate complete updated source files.
+
+Request:
+
+```bash
+curl -X POST \
+"http://localhost:8080/analysis/ai/generate-full-patch" \
+-H "Content-Type: application/json" \
+-d '{
+  "prompt":"Rename CustomerClient.getCustomer to fetchCustomer"
+}'
+```
+
+Response:
+
+```json
+[
+  {
+    "repo":"CustomerClient",
+    "file":"CustomerGateway.java",
+    "originalFile":"...",
+    "updatedFile":"..."
+  }
+]
+```
 
 ---
 
-# Demo Pitch
+# Example Enterprise Workflow
 
-AI Code Impact Analysis Platform enables engineering teams to describe a change request in plain English and instantly understand:
+Repositories:
 
-* Impacted services
-* Impacted classes
-* Database modifications
-* Risks
-* Recommended implementation plan
+```text
+customer-service
+billing-service
+order-service
+notification-service
+customer-client
+```
 
-The platform combines static code analysis, dependency graphs, and Claude AI to accelerate software delivery and reduce change risk.
+Developer request:
+
+```text
+Rename Customer.lastName to surname
+```
+
+Platform automatically:
+
+1. Finds impacted repositories
+2. Finds impacted files
+3. Finds impacted methods
+4. Generates migration plan
+5. Generates deployment order
+6. Generates code changes
+7. Generates updated Java files
+
+Output:
+
+```text
+Impacted Repositories
+
+- CustomerClient
+- BillingService
+
+Files
+
+- CustomerMapper.java
+- BillingMapper.java
+
+Changes
+
+getLastName()
+ ->
+getSurname()
+```
+
+---
+
+# Current Features
+
+✅ Multi-repository indexing
+
+✅ Java dependency graph generation
+
+✅ Service dependency analysis
+
+✅ Field rename impact analysis
+
+✅ Method rename impact analysis
+
+✅ API endpoint impact analysis
+
+✅ AI-assisted migration planning
+
+✅ AI-assisted deployment planning
+
+✅ AI-generated code changes
+
+✅ AI-generated full source files
+
+---
+
+# Future Roadmap
+
+* Git Diff Generation
+* Automatic Patch Application
+* Git Commit Automation
+* GitHub Pull Request Creation
+* CI/CD Integration
+* Kubernetes Deployment Impact Analysis
+* OpenAPI Contract Impact Analysis
+* Event-Driven Architecture Impact Analysis
+
+
+
+Demo 1 — Field Rename (Strongest Current Demo)
+Scenario
+
+In customer-service:
+
+private String lastName;
+
+becomes:
+
+private String surname;
+Ask AI
+curl -X POST "http://localhost:8080/analysis/ai/chat" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename Customer.lastName to surname in customer-service\"}"
+Expected
+CustomerClient
+CustomerMapper.java
+
+BillingService
+BillingMapper.java
+
+getLastName()
+→
+getSurname()
+Generate patch
+curl -X POST "http://localhost:8080/analysis/ai/generate-full-patch" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename Customer.lastName to surname in customer-service\"}"
+
+This is your best current multi-repo demo.
+
+Demo 2 — Method Rename
+Scenario
+
+In CustomerClient:
+
+getCustomer()
+
+becomes:
+
+fetchCustomer()
+Ask
+curl -X POST "http://localhost:8080/analysis/ai/chat" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename CustomerClient.getCustomer to fetchCustomer\"}"
+Expected
+CustomerGateway.java
+
+getCustomer()
+→
+fetchCustomer()
+Generate full patch
+curl -X POST "http://localhost:8080/analysis/ai/generate-full-patch" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename CustomerClient.getCustomer to fetchCustomer\"}"
+
+Expected:
+
+return customerClient
+.fetchCustomer();
+Demo 3 — API Contract Change
+Scenario
+
+customer-service changes:
+
+/customer
+
+to
+
+/customer/v2
+Ask
+curl -X POST "http://localhost:8080/impact/service-api-change" ^
+-H "Content-Type: application/json" ^
+-d "{\"service\":\"customer-service\",\"oldEndpoint\":\"/customer\",\"newEndpoint\":\"/customer/v2\"}"
+
+Expected:
+
+CustomerGateway.java
+BillingService
+CustomerClient
+
+affected.
+
+Demo 4 — Add a New Consumer Repository
+
+This is the best way to show multi-repo power.
+
+Create a new repo:
+
+OrderService
+
+Add:
+
+@FeignClient("customer-service")
+public interface CustomerClient {
+}
+
+and:
+
+customer.getLastName();
+
+Index it:
+
+curl -X POST "http://localhost:8080/repositories/index" ^
+-H "Content-Type: application/json" ^
+-d "{\"repoUrl\":\"https://github.com/you/OrderService.git\"}"
+
+Now rerun:
+
+curl -X POST "http://localhost:8080/analysis/ai/chat" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename Customer.lastName to surname in customer-service\"}"
+
+Expected:
+
+BillingService
+CustomerClient
+OrderService
+
+all impacted.
+
+This is a true multi-repo demonstration.
+
+Demo 5 — Breaking Change Analysis
+
+Ask:
+
+curl -X POST "http://localhost:8080/analysis/ai/chat" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename Customer.lastName to surname in customer-service\"}"
+
+Claude should return:
+
+Risk: Medium
+
+Migration Plan:
+1. Update customer-service
+2. Update CustomerClient
+3. Update BillingService
+
+Deployment Order:
+customer-service
+CustomerClient
+BillingService
+
+This demonstrates AI planning, not just code search.
+
+Demo 6 — Enterprise Scenario
+
+Imagine 10 repositories:
+
+customer-service
+billing-service
+order-service
+payment-service
+notification-service
+reporting-service
+analytics-service
+customer-client
+mobile-api
+web-api
+
+All consume:
+
+Customer.lastName
+
+Ask:
+
+Rename Customer.lastName to surname
+
+Expected output:
+
+10 repositories impacted
+23 files impacted
+17 methods impacted
+Deployment order generated
+Migration plan generated
+Patches generated
+
+This is the vision your platform is heading toward.
+
+The Most Impressive Demo Today
+
+Run:
+
+curl -X POST "http://localhost:8080/analysis/ai/generate-full-patch" ^
+-H "Content-Type: application/json" ^
+-d "{\"prompt\":\"Rename Customer.lastName to surname in customer-service\"}"
+
+and show:
+
+Natural language request
+Multi-repo impact detection
+Exact affected files
+Generated code changes
+Full updated Java files
+
+That demonstrates the entire value of the platform end-to-end.

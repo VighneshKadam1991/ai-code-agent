@@ -1,8 +1,7 @@
 package com.company.aicodeagent.dto;
 
-import java.util.List;
+public class ClaudeImpactResponse {
 
-public class AiAnalysisResponse {
     private String summary;
 
     private String risk;
@@ -10,24 +9,6 @@ public class AiAnalysisResponse {
     private String migrationPlan;
 
     private String deploymentOrder;
-
-    private List<CodeChangeImpact> impacts;
-    private String response;
-
-    public AiAnalysisResponse() {
-    }
-
-    public AiAnalysisResponse(String response) {
-        this.response = response;
-    }
-
-    public String getResponse() {
-        return response;
-    }
-
-    public void setResponse(String response) {
-        this.response = response;
-    }
 
     public String getSummary() {
         return summary;
@@ -59,13 +40,5 @@ public class AiAnalysisResponse {
 
     public void setDeploymentOrder(String deploymentOrder) {
         this.deploymentOrder = deploymentOrder;
-    }
-
-    public List<CodeChangeImpact> getImpacts() {
-        return impacts;
-    }
-
-    public void setImpacts(List<CodeChangeImpact> impacts) {
-        this.impacts = impacts;
     }
 }

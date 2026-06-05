@@ -45,7 +45,9 @@ public class JavaParserService {
                                 .toString()
                                 .equals("module-info.java"))
                 .forEach(path -> {
-
+                    System.out.println(
+                            "JAVA FILE FOUND = "
+                                    + path);
                     try {
 
                         String source =

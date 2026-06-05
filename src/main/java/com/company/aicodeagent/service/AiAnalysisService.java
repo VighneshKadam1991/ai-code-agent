@@ -1,10 +1,11 @@
 package com.company.aicodeagent.service;
 
-import com.company.aicodeagent.dto.ImpactFileResponse;
+import com.company.aicodeagent.dto.*;
 import com.company.aicodeagent.entity.FieldReferenceEntity;
 import com.company.aicodeagent.entity.JavaClassEntity;
 import com.company.aicodeagent.entity.MethodReferenceEntity;
 import com.company.aicodeagent.repository.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import java.util.HashSet;
 import java.util.ArrayList;
@@ -35,7 +36,8 @@ public class AiAnalysisService {
     private final MethodReferenceRepository
             methodReferenceRepository;
 
-
+    private final JavaClassRepository
+            javaClassRepository;
 
     public AiAnalysisService(
             ClaudeService claudeService,
@@ -45,7 +47,7 @@ public class AiAnalysisService {
             ApiFlowRepository apiFlowRepository,
             ImpactAnalysisService impactAnalysisService,
             FieldReferenceRepository fieldReferenceRepository,MethodReferenceRepository
-                    methodReferenceRepository) {
+                    methodReferenceRepository,JavaClassRepository javaClassRepository) {
 
         this.claudeService = claudeService;
         this.repository = repository;
@@ -58,6 +60,8 @@ public class AiAnalysisService {
                 fieldReferenceRepository;
         this.methodReferenceRepository =
                 methodReferenceRepository;
+        this.javaClassRepository =
+                javaClassRepository;
     }
 
     public String analyze(String issue) {
@@ -340,6 +344,7 @@ public class AiAnalysisService {
                     "====================================\n\n");
         }
 
+
         return claudeService.askClaude(
                 prompt.toString());
     }
@@ -412,5 +417,576 @@ public class AiAnalysisService {
         return classes;
     }
 
+    public AiAnalysisResponse analyze(
+            ChangeAnalysisRequest request) {
 
+        List<CodeChangeImpact> impacts =
+                impactAnalysisService
+                        .serviceFieldChangeImpact(
+                                request);
+
+        String prompt =
+                buildPrompt(
+                        impacts,
+                        request);
+
+        String claudeResponse =
+                claudeService.askClaude(
+                        prompt);
+
+        System.out.println(
+                "CLAUDE RESPONSE = "
+                        + claudeResponse);
+
+        ObjectMapper mapper =
+                new ObjectMapper();
+        try {
+
+            claudeResponse =
+                    claudeResponse
+                            .replace("```json", "")
+                            .replace("```", "")
+                            .trim();
+
+            System.out.println(
+                    "CLEANED RESPONSE = ");
+
+            System.out.println(
+                    claudeResponse);
+
+        AiAnalysisResponse response =
+                mapper.readValue(
+                        claudeResponse,
+                        AiAnalysisResponse.class);
+
+        response.setImpacts(
+                impacts);
+
+        return response;
+        } catch (Exception ex) {
+
+            System.out.println(
+                    "JSON PARSE FAILED");
+
+            System.out.println(
+                    claudeResponse);
+
+            AiAnalysisResponse response =
+                    new AiAnalysisResponse();
+
+            response.setSummary(
+                    claudeResponse);
+
+            response.setImpacts(
+                    impacts);
+
+            return response;
+        }
+    }
+
+    private String buildPrompt(
+            List<CodeChangeImpact> impacts,
+            ChangeAnalysisRequest request)
+    {
+        StringBuilder prompt =
+                new StringBuilder();
+
+        prompt.append(
+                "A field is being renamed.\n\n");
+
+        prompt.append(
+                        "Service: ")
+                .append(
+                        request.getService())
+                .append("\n");
+
+        prompt.append(
+                        "Entity: ")
+                .append(
+                        request.getEntity())
+                .append("\n");
+
+        prompt.append(
+                        "Old Field: ")
+                .append(
+                        request.getOldField())
+                .append("\n");
+
+        prompt.append(
+                        "New Field: ")
+                .append(
+                        request.getNewField())
+                .append("\n\n");
+
+        prompt.append(
+                "Impacted Files:\n");
+        for (CodeChangeImpact impact : impacts) {
+
+            prompt.append(
+                            "Repository: ")
+                    .append(
+                            impact.getRepo())
+                    .append("\n");
+
+            prompt.append(
+                            "File: ")
+                    .append(
+                            impact.getFile())
+                    .append("\n");
+
+            prompt.append(
+                            "Old Code: ")
+                    .append(
+                            impact.getOldCode())
+                    .append("\n");
+
+            prompt.append(
+                            "New Code: ")
+                    .append(
+                            impact.getNewCode())
+                    .append("\n\n");
+        }
+
+        prompt.append(
+                """
+        
+        Return ONLY valid JSON.
+        
+        {
+          "summary":"",
+          "risk":"",
+          "migrationPlan":"",
+          "deploymentOrder":""
+        }
+        
+        Do not return markdown.
+        Do not return explanations.
+        Do not use code blocks.
+        Do not return any text outside JSON.
+        
+                """);
+
+        return prompt.toString();
+
+    }
+
+    public AiAnalysisResponse chat(
+            String prompt) {
+
+        try {
+
+            String extractionPrompt =
+                    """
+                    Convert the user request
+                    into JSON.
+            
+                    Return ONLY JSON.
+            
+                    Field rename example:
+            
+                    {
+                      "changeType":"FIELD_RENAME",
+                      "service":"customer-service",
+                      "entity":"Customer",
+                      "oldField":"lastName",
+                      "newField":"surname"
+                    }
+            
+                    Method rename example:
+            
+                    {
+                      "changeType":"METHOD_RENAME",
+                      "className":"CustomerClient",
+                      "oldMethod":"getCustomer",
+                      "newMethod":"fetchCustomer"
+                    }
+            
+                    User Request:
+                    """
+                            + prompt;
+
+            String extractedJson =
+                    claudeService.askClaude(
+                            extractionPrompt);
+
+            System.out.println(
+                    "CLAUDE RESPONSE = ");
+
+            System.out.println(
+                    extractedJson);
+
+            extractedJson =
+                    extractedJson
+                            .replace("```json", "")
+                            .replace("```", "")
+                            .trim();
+
+            System.out.println(
+                    "CLEANED JSON = ");
+
+            System.out.println(
+                    extractedJson);
+
+            ObjectMapper mapper =
+                    new ObjectMapper();
+
+            ChangeAnalysisRequest request =
+                    mapper.readValue(
+                            extractedJson,
+                            ChangeAnalysisRequest.class);
+
+            System.out.println(
+                    "CHANGE TYPE = "
+                            + request.getChangeType());
+
+            if ("METHOD_RENAME".equalsIgnoreCase(
+                    request.getChangeType())) {
+
+                MethodChangeRequest methodRequest =
+                        new MethodChangeRequest();
+
+                methodRequest.setClassName(
+                        request.getClassName());
+
+                methodRequest.setOldMethod(
+                        request.getOldMethod());
+
+                methodRequest.setNewMethod(
+                        request.getNewMethod());
+
+                List<CodeChangeImpact> impacts =
+                        impactAnalysisService
+                                .serviceMethodChangeImpact(
+                                        methodRequest);
+
+                AiAnalysisResponse response =
+                        new AiAnalysisResponse();
+
+                response.setSummary(
+                        "Method rename impact analysis");
+
+                response.setImpacts(
+                        impacts);
+
+                return response;
+            }
+
+            return analyze(
+                    request);
+
+        } catch (Exception ex) {
+
+            throw new RuntimeException(
+                    ex);
+        }
+    }
+    public List<CodePatch> generatePatch(
+            String prompt) {
+
+        try {
+
+            String extractionPrompt =
+                    """
+                    Convert the user request
+                    into JSON.
+        
+                            Return ONLY raw JSON.
+                            
+                            Do NOT use markdown.
+                            Do NOT use ```json.
+                            Do NOT wrap JSON in code fences.
+                            
+                            Example:
+                            
+                            {
+                              "service":"customer-service",
+                              "entity":"Customer",
+                              "oldField":"lastName",
+                              "newField":"surname"
+                            }
+        
+                    {
+                      "service":"",
+                      "entity":"",
+                      "oldField":"",
+                      "newField":""
+                    }
+        
+                    User Request:
+                    """
+                            + prompt;
+
+            String extractedJson =
+                    claudeService.askClaude(
+                            extractionPrompt);
+
+            System.out.println(
+                    "CLAUDE RESPONSE = ");
+
+            System.out.println(
+                    extractedJson);
+
+            extractedJson =
+                    extractedJson
+                            .replace("```json", "")
+                            .replace("```", "")
+                            .trim();
+
+            System.out.println(
+                    "CLEANED JSON = ");
+
+            System.out.println(
+                    extractedJson);
+
+            ObjectMapper mapper =
+                    new ObjectMapper();
+
+            ChangeAnalysisRequest request =
+                    mapper.readValue(
+                            extractedJson,
+                            ChangeAnalysisRequest.class);
+
+            AiAnalysisResponse analysis =
+                    analyze(
+                            request);
+
+            System.out.println(
+                    "IMPACTS FOUND = "
+                            + analysis.getImpacts().size());
+            for (CodeChangeImpact impact :
+                    analysis.getImpacts()) {
+
+                System.out.println(
+                        "PATCH TARGET = "
+                                + impact.getFile());
+
+                System.out.println(
+                        "OLD CODE = "
+                                + impact.getOldCode());
+
+                System.out.println(
+                        "NEW CODE = "
+                                + impact.getNewCode());
+            }
+            List<CodePatch> patches =
+                    new ArrayList<>();
+
+            for (CodeChangeImpact impact :
+                    analysis.getImpacts()) {
+
+                CodePatch patch =
+                        new CodePatch();
+
+                patch.setRepo(
+                        impact.getRepo());
+
+                patch.setFile(
+                        impact.getFile());
+
+                patch.setOriginalCode(
+                        impact.getOldCode());
+
+                patch.setUpdatedCode(
+                        impact.getNewCode());
+
+                patches.add(
+                        patch);
+            }
+
+            return patches;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            throw new RuntimeException(
+                    ex);
+        }
+
+
+    }
+    public List<GeneratedPatch>
+    generateFullPatch(
+            String prompt) {
+
+        try {
+
+            String extractionPrompt =
+                    """
+                    Convert the user request
+                    into JSON.
+            
+                    Return ONLY JSON.
+            
+                    Field rename example:
+            
+                    {
+                      "changeType":"FIELD_RENAME",
+                      "service":"customer-service",
+                      "entity":"Customer",
+                      "oldField":"lastName",
+                      "newField":"surname"
+                    }
+            
+                    Method rename example:
+            
+                    {
+                      "changeType":"METHOD_RENAME",
+                      "className":"CustomerClient",
+                      "oldMethod":"getCustomer",
+                      "newMethod":"fetchCustomer"
+                    }
+            
+                    User Request:
+                    """
+                            + prompt;
+
+            String extractedJson =
+                    claudeService.askClaude(
+                            extractionPrompt);
+
+            System.out.println(
+                    "PATCH CLAUDE RESPONSE = ");
+
+            System.out.println(
+                    extractedJson);
+
+            extractedJson =
+                    extractedJson
+                            .replace("```json", "")
+                            .replace("```", "")
+                            .trim();
+
+            ObjectMapper mapper =
+                    new ObjectMapper();
+
+            ChangeAnalysisRequest request =
+                    mapper.readValue(
+                            extractedJson,
+                            ChangeAnalysisRequest.class);
+
+            AiAnalysisResponse analysis;
+            System.out.println(
+                    "PATCH CHANGE TYPE = "
+                            + request.getChangeType());
+
+            if ("METHOD_RENAME".equalsIgnoreCase(
+                    request.getChangeType())) {
+
+                MethodChangeRequest methodRequest =
+                        new MethodChangeRequest();
+
+                methodRequest.setClassName(
+                        request.getClassName());
+
+                methodRequest.setOldMethod(
+                        request.getOldMethod());
+
+                methodRequest.setNewMethod(
+                        request.getNewMethod());
+
+                List<CodeChangeImpact> impacts =
+                        impactAnalysisService
+                                .serviceMethodChangeImpact(
+                                        methodRequest);
+
+                analysis =
+                        new AiAnalysisResponse();
+
+                analysis.setImpacts(
+                        impacts);
+
+                System.out.println(
+                        "METHOD IMPACTS FOUND = "
+                                + impacts.size());
+
+
+
+            } else {
+
+                analysis =
+                        analyze(
+                                request);
+            }
+
+            List<GeneratedPatch> patches =
+                    new ArrayList<>();
+            System.out.println(
+                    "PATCH IMPACTS = "
+                            + analysis.getImpacts().size());
+            for (CodeChangeImpact impact :
+                    analysis.getImpacts()) {
+
+                JavaClassEntity javaClass =
+                        javaClassRepository
+                                .findByFilePath(
+                                        impact.getFile())
+                                .orElseThrow();
+
+                String sourceCode =
+                        javaClass.getSourceCode();
+
+                String patchPrompt =
+                        """
+                        Update this Java file.
+    
+                        Replace:
+    
+                        """
+                                + impact.getOldCode()
+                                + """
+
+                    with
+
+                    """
+                                + impact.getNewCode()
+                                + """
+
+                    Return ONLY the full updated Java file.
+
+                    Source File:
+
+                    """
+                                + sourceCode;
+                String updatedFile =
+                        claudeService.askClaude(
+                                patchPrompt);
+
+                updatedFile =
+                        updatedFile
+                                .replaceAll(
+                                        "```[a-zA-Z]*",
+                                        "")
+                                .replace(
+                                        "```",
+                                        "")
+                                .trim();
+
+                GeneratedPatch patch =
+                        new GeneratedPatch();
+
+                patch.setRepo(
+                        impact.getRepo());
+
+                patch.setFile(
+                        impact.getFile());
+
+                patch.setOriginalFile(
+                        sourceCode);
+
+                patch.setUpdatedFile(
+                        updatedFile);
+
+                patches.add(
+                        patch);
+            }
+
+            return patches;
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+
+            throw new RuntimeException(
+                    ex);
+        }
+    }
 }

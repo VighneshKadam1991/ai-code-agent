@@ -26,5 +26,11 @@ public interface FieldReferenceRepository
     findByTargetClass(
             String targetClass);
 
+    List<FieldReferenceEntity>
+    findByFieldName(
+            String fieldName);
 
+    List<FieldReferenceEntity>
+    findByFieldNameIgnoreCase(
+            String fieldName);
 }
