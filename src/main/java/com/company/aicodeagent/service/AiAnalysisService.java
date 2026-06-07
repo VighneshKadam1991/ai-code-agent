@@ -659,6 +659,7 @@ public class AiAnalysisService {
                                 .serviceMethodChangeImpact(
                                         methodRequest);
 
+
                 AiAnalysisResponse response =
                         new AiAnalysisResponse();
 
